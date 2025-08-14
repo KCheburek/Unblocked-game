@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subway Runner</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            background-color: #121212;
+            color: #E0E0E0;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+        }
+
+        canvas {
+            background-color: #212121;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            touch-action: none; /* Prevents default touch gestures */
+            border: 2px solid #333;
+        }
+
+        .game-info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: row;
+            gap: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+            padding: 10px 20px;
+            background-color: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+        }
+
+        .score-display, .high-score-display {
+            display: flex;
+            align-items: center;
+            color: #E0E0E0;
+        }
+
+        .message-box {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(145deg, #2a2a2a, #1f1f1f);
+            border: 2px solid #333;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            text-align: center;
+            z-index: 1000;
+            max-width: 90%;
+        }
+
+        .message-box h2 {
+            margin-top: 0;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .message-box p {
+            font-size: 1.1em;
+            color: #B0B0B0;
+            margin-bottom: 20px;
+        }
+
+        .message-box button {
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1em;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        .message-box button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .message-box button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="game-info">
+        <span class="score-display">Score: <span id="scoreValue">0</span></span>
+        <span class="high-score-display">High Score: <span id="highScoreValue">0</span></span>
+    </div>
+
+    <div id="messageBox" class="message-box">
+        <h2 id="messageTitle">Game Over!</h2>
+        <p id="messageText">Your score: <span id="finalScore">0</span></p>
+        <button id="restartButton">Restart</button>
+    </div>
+
+    <script>
+        // Game state variables
+        let canvas, ctx;
+        let player, game, obstacles;
+        let score = 0;
+        let highScore = localStorage.getItem('highScore') || 0;
+        let isGameOver = false;
+
+        // Player properties
+        const playerSize = 50;
+        const playerJumpPower = -20;
+        const gravity = 1;
+        
+        // Obstacle properties
+        const obstacleWidth = 30;
+        const obstacleHeight = 60;
+        const obstacleSpeedBase = 5;
+
+        // Game loop and timing
+        let lastObstacleTime = 0;
+        const obstacleIntervalMin = 1000;
+        const obstacleIntervalMax = 2000;
+        let speedMultiplier = 1;
+
+        // Function to set up the game canvas and initial state
+        function setupCanvas() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas size for responsiveness
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // Initialize game objects
+            player = {
+                x: 50,
+                y: canvas.height - playerSize,
+                width: playerSize,
+                height: playerSize,
+                yVelocity: 0,
+                isJumping: false,
+                isSliding: false
+            };
+            game = {
+                running: true
+            };
+            obstacles = [];
+
+            // Update high score display
+            document.getElementById('highScoreValue').textContent = highScore;
+        }
+
+        // Adjust canvas size to fit the window
+        function resizeCanvas() {
+            const size = Math.min(window.innerWidth, window.innerHeight) * 0.9;
+            canvas.width = size;
+            canvas.height = size / 1.5;
+            if (player) {
+                 player.y = canvas.height - playerSize;
+            }
+        }
+
+        // Start a new game
+        function startGame() {
+            // Hide the message box
+            document.getElementById('messageBox').style.display = 'none';
+
+            // Reset game variables
+            score = 0;
+            isGameOver = false;
+            obstacles = [];
+            lastObstacleTime = 0;
+            speedMultiplier = 1;
+            game.running = true;
+
+            // Reset player position
+            player.x = 50;
+            player.y = canvas.height - playerSize;
+            player.yVelocity = 0;
+            player.isJumping = false;
+            player.isSliding = false;
+
+            // Start the game loop
+            animate(0);
+        }
+
+        // Main game loop
+        function animate(timestamp) {
+            if (!game.running) return;
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw the player
+            updatePlayer();
+            drawPlayer();
+
+            // Update and draw obstacles
+            updateObstacles(timestamp);
+            drawObstacles();
+
+            // Check for collision
+            checkCollision();
+
+            // Update score
+            score++;
+            document.getElementById('scoreValue').textContent = Math.floor(score / 10);
+            
+            if (!isGameOver) {
+                // Request the next frame
+                requestAnimationFrame(animate);
+            }
+        }
+
+        // Player logic
+        function updatePlayer() {
+            if (player.isJumping) {
+                player.yVelocity += gravity;
+                player.y += player.yVelocity;
+
+                if (player.y >= canvas.height - player.height) {
+                    player.y = canvas.height - player.height;
+                    player.isJumping = false;
+                    player.yVelocity = 0;
+                }
+            }
+        }
+
+        // Draw the player character
+        function drawPlayer() {
+            ctx.fillStyle = '#4285F4'; // Google Blue
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        // Obstacle creation and movement
+        function updateObstacles(timestamp) {
+            if (timestamp - lastObstacleTime > obstacleIntervalMin + (Math.random() * (obstacleIntervalMax - obstacleIntervalMin))) {
+                obstacles.push({
+                    x: canvas.width,
+                    y: canvas.height - obstacleHeight,
+                    width: obstacleWidth,
+                    height: obstacleHeight,
+                    speed: (obstacleSpeedBase + Math.floor(score / 500)) * speedMultiplier
+                });
+                lastObstacleTime = timestamp;
+                speedMultiplier += 0.001; // Gradually increase speed
+            }
+
+            obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
+            obstacles.forEach(obstacle => {
+                obstacle.x -= obstacle.speed;
+            });
+        }
+        
+        // Draw all obstacles
+        function drawObstacles() {
+            ctx.fillStyle = '#EA4335'; // Google Red
+            obstacles.forEach(obstacle => {
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            });
+        }
+
+        // Collision detection
+        function checkCollision() {
+            obstacles.forEach(obstacle => {
+                if (
+                    player.x < obstacle.x + obstacle.width &&
+                    player.x + player.width > obstacle.x &&
+                    player.y < obstacle.y + obstacle.height &&
+                    player.y + player.height > obstacle.y
+                ) {
+                    gameOver();
+                }
+            });
+        }
+
+        // Handle game over state
+        function gameOver() {
+            isGameOver = true;
+            game.running = false;
+            
+            // Update high score
+            const currentScore = Math.floor(score / 10);
+            if (currentScore > highScore) {
+                highScore = currentScore;
+                localStorage.setItem('highScore', highScore);
+                document.getElementById('highScoreValue').textContent = highScore;
+            }
+
+            // Display the game over message box
+            document.getElementById('messageBox').style.display = 'block';
+            document.getElementById('finalScore').textContent = currentScore;
+        }
+
+        // Event listeners for user input
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Space' && !player.isJumping) {
+                player.isJumping = true;
+                player.yVelocity = playerJumpPower;
+            }
+        });
+
+        // Event listeners for mobile touch input (tap to jump)
+        canvas.addEventListener('touchstart', (e) => {
+             e.preventDefault(); // Prevent default browser behavior
+             if (!player.isJumping) {
+                player.isJumping = true;
+                player.yVelocity = playerJumpPower;
+            }
+        });
+
+        // Restart button functionality
+        document.getElementById('restartButton').addEventListener('click', () => {
+            startGame();
+        });
+
+        // Initialize the game when the window loads
+        window.onload = function() {
+            setupCanvas();
+            startGame();
+        };
+
+    </script>
+</body>
+</html>
