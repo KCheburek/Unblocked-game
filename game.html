@@ -107,6 +107,7 @@
 <body>
     <canvas id="gameCanvas"></canvas>
 
+    <!-- UI for displaying the score and a message box for game over -->
     <div class="game-info">
         <span class="score-display">Score: <span id="scoreValue">0</span></span>
         <span class="high-score-display">High Score: <span id="highScoreValue">0</span></span>
@@ -176,6 +177,7 @@
             canvas.width = size;
             canvas.height = size / 1.5;
             if (player) {
+                 // Adjust player position if the canvas is resized
                  player.y = canvas.height - playerSize;
             }
         }
@@ -254,6 +256,7 @@
 
         // Obstacle creation and movement
         function updateObstacles(timestamp) {
+            // Randomly create a new obstacle
             if (timestamp - lastObstacleTime > obstacleIntervalMin + (Math.random() * (obstacleIntervalMax - obstacleIntervalMin))) {
                 obstacles.push({
                     x: canvas.width,
@@ -266,6 +269,7 @@
                 speedMultiplier += 0.001; // Gradually increase speed
             }
 
+            // Move and remove obstacles that have passed the screen
             obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
             obstacles.forEach(obstacle => {
                 obstacle.x -= obstacle.speed;
@@ -314,6 +318,7 @@
 
         // Event listeners for user input
         document.addEventListener('keydown', e => {
+            // Jump with the space bar
             if (e.code === 'Space' && !player.isJumping) {
                 player.isJumping = true;
                 player.yVelocity = playerJumpPower;
